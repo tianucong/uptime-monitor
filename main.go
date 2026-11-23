@@ -22,7 +22,7 @@ func main(){
 	mux.HandleFunc("/health",healthHandler(db))
 	mux.HandleFunc("GET /api/monitors",listMonitorHandler(db))
 	mux.HandleFunc("POST /api/monitors",createMonitorHandler(db))
-	mux.HandleFunc("GET /api/test-check",testCheckHandler())
+	mux.HandleFunc("POST /api/monitors/{id}/check",checkMonitorHandler(db))
 
 	log.Println("Server jalan di http://localhost:8080")
 	err=http.ListenAndServe(":8080",mux)

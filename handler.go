@@ -3,9 +3,11 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -71,9 +73,15 @@ func createMonitorHandler(db *sql.DB)http.HandlerFunc{
 
 func listMonitorHandler(db *sql.DB)http.HandlerFunc{
 	return func (w http.ResponseWriter,r *http.Request){
-		rows, err:=db.Query(
-		"SELECT id, name, url, created_at FROM monitors ORDER BY id DESC",	
-		)
+		rows, err:=db.Query(`
+		SELECT  m.id, m.name,m.url,m.created_at,
+		l.status,l.status_code,l.latency_ms,l.checked_at
+		FROM monitors ,
+		LEFT JOIN monitor_logs l
+		On l.id=(SELECT MAX (id) FROM monitor_logs WHERE monitor_id=m.id)
+		ORDER BY M.id DESC
+
+		`)
 		if err!=nil{
 			log.Println("gagal query monitors:",err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{
@@ -87,7 +95,7 @@ func listMonitorHandler(db *sql.DB)http.HandlerFunc{
 		for rows.Next(){
 			var m Monitor 
 
-			if err:=rows.Scan(&m.ID, &m.Name, &m.URL, &m.CreatedAt); err!=nil{
+			if err:=rows.Scan(&m.ID, &m.Name, &m.URL, &m.CreatedAt,&m.LastStatus,&m.LastStatusCode,&m.LastLatencyMs,&m.LastCheckedAt,); err!=nil{
 				log.Println("gagal scan baris:",err)
 				writeJSON(w, http.StatusInternalServerError, map[string]string{
 					"error": "gagal membaca data",
@@ -107,16 +115,39 @@ func listMonitorHandler(db *sql.DB)http.HandlerFunc{
 	}
 }
 
-func testCheckHandler()http.HandlerFunc{
+func checkMonitorHandler(db *sql.DB)http.HandlerFunc{
 	return func (w http.ResponseWriter,r *http.Request){
-		target := r.URL.Query().Get("url")
-		if target==""{
+		id,err:=strconv.Atoi(r.PathValue("id"))
+		if err != nil{
 			writeJSON(w, http.StatusBadRequest,map[string]string{
-				"error":"isi parameter ?url=",
+				"error":"id harus berupa angka",
 			})
 			return
 		}
+		var target string
+		err=db.QueryRow("SELECT url FROM monitors WHERE id=?",id).Scan(&target)
+		if errors.Is(err,sql.ErrNoRows){
+			writeJSON(w,http.StatusNotFound,map[string]string{
+				"error":"monitor tidak ditemukan",
+			})
+			return
+		}
+		if err != nil{
+			log.Println("gagal ambil monitor:",err)
+			writeJSON(w, http.StatusInternalServerError,map[string]string{
+				"error":"gagal membaca data",
+			})
+			return 
+		}
 		hasil:=cekWebsite(target)
+
+		if err:=saveLog(db,id,hasil);err!=nil{
+			log.Println("gagal simpan log:",err)
+			writeJSON(w, http.StatusInternalServerError,map[string]string{
+				"error":"gagal menyimpan hasil",
+			})
+			return
+		}
 
 		writeJSON(w,http.StatusOK,map[string]any{
 			"url":target,

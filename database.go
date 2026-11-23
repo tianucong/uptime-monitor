@@ -21,3 +21,11 @@ func connectDB(dsn string)(*sql.DB,error){
 	}
 	return db, nil
 }
+
+func saveLog(db *sql.DB,monitorID int, hasil CheckResult) error{
+	_,err:=db.Exec(
+		"INSERT INTO monitor_logs (monitor_id,status,status_code,latency_ms) VALUES (?,?,?,?)",
+		monitorID,hasil.Status,hasil.StatusCode,hasil.LatencyMs,
+	)
+	return err
+}
