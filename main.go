@@ -18,6 +18,8 @@ func main(){
 	defer db.Close()
 	log.Println("Berhasil connnect ke database")
 
+	go jalankanMonitor(db)
+
 	mux:=http.NewServeMux()
 	mux.HandleFunc("/health",healthHandler(db))
 	mux.HandleFunc("GET /api/monitors",listMonitorHandler(db))

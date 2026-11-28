@@ -29,3 +29,24 @@ func saveLog(db *sql.DB,monitorID int, hasil CheckResult) error{
 	)
 	return err
 }
+
+func getAllMonitors (db *sql.DB)([]Monitor,error){
+	rows,err := db.Query("SELECT id,name,url FROM monitors")
+	if err != nil{
+		return nil, err
+	}
+	defer rows.Close()
+
+	monitors := []Monitor{}
+	for rows.Next(){
+		var m Monitor 
+		if err := rows.Scan(&m.ID,&m.Name,&m.URL);err != nil{
+			return nil,err
+		}
+		monitors=append(monitors,m)
+	}
+	if err := rows.Err(); err != nil{
+		return nil,err
+	}
+	return monitors,nil
+}
